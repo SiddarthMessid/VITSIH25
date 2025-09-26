@@ -759,6 +759,7 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "biopython" },
+    { name = "numpy" },
     { name = "pandas" },
     { name = "plotly" },
     { name = "py3dmol" },
@@ -770,6 +771,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "biopython", specifier = ">=1.85" },
+    { name = "numpy", specifier = ">=2.3.3" },
     { name = "pandas", specifier = ">=2.3.2" },
     { name = "plotly", specifier = ">=6.3.0" },
     { name = "py3dmol", specifier = ">=2.5.2" },

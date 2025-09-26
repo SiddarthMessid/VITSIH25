@@ -271,13 +271,13 @@ with tab2:
             # PDB ID pattern filter
             if pdb_pattern_filter and pdb_pattern:
                 # Ensure we have a DataFrame and convert PDB column to string if needed
-                if not filtered_df.empty:
+                if len(filtered_df) > 0:
                     filtered_df = filtered_df[
                         filtered_df['pdb_id'].astype(str).str.contains(pdb_pattern, case=False, na=False)
                     ]
             
             # Apply sorting
-            if not filtered_df.empty and sort_column in filtered_df.columns:
+            if len(filtered_df) > 0 and sort_column in filtered_df.columns:
                 filtered_df = filtered_df.sort_values(by=sort_column, ascending=sort_ascending).reset_index(drop=True)
             
             # Update rank based on new order

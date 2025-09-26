@@ -7,7 +7,8 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import py3Dmol
-from Bio.PDB import PDBParser, Superimposer
+from Bio.PDB.PDBParser import PDBParser
+from Bio.PDB.Superimposer import Superimposer
 
 
 def create_structure_comparison_viewer(structure_data_list, width=700, height=500):
@@ -98,21 +99,23 @@ def calculate_structure_alignment(ref_pdb_path, target_pdb_path, chain_id='A'):
         ref_chain = None
         target_chain = None
         
-        for model in ref_structure:
-            for chain in model:
-                if chain.id == chain_id:
-                    ref_chain = chain
+        if ref_structure is not None:
+            for model in ref_structure:
+                for chain in model:
+                    if chain.id == chain_id:
+                        ref_chain = chain
+                        break
+                if ref_chain:
                     break
-            if ref_chain:
-                break
         
-        for model in target_structure:
-            for chain in model:
-                if chain.id == chain_id:
-                    target_chain = chain
+        if target_structure is not None:
+            for model in target_structure:
+                for chain in model:
+                    if chain.id == chain_id:
+                        target_chain = chain
+                        break
+                if target_chain:
                     break
-            if target_chain:
-                break
         
         if not ref_chain or not target_chain:
             return {'error': f'Chain {chain_id} not found in one or both structures'}
@@ -142,8 +145,9 @@ def calculate_structure_alignment(ref_pdb_path, target_pdb_path, chain_id='A'):
         # Calculate metrics
         rmsd = superimposer.rms
         aligned_atoms = len(ref_atoms)
-        rotation_matrix = superimposer.rotran[0]
-        translation_vector = superimposer.rotran[1]
+        rotran = superimposer.rotran
+        rotation_matrix = rotran[0] if rotran else None
+        translation_vector = rotran[1] if rotran else None
         
         return {
             'rmsd': rmsd,
@@ -151,8 +155,8 @@ def calculate_structure_alignment(ref_pdb_path, target_pdb_path, chain_id='A'):
             'common_residues': common_residues,
             'coverage_ref': len(common_residues) / len(ref_residues) * 100,
             'coverage_target': len(common_residues) / len(target_residues) * 100,
-            'rotation_matrix': rotation_matrix.tolist(),
-            'translation_vector': translation_vector.tolist()
+            'rotation_matrix': rotation_matrix.tolist() if rotation_matrix is not None else None,
+            'translation_vector': translation_vector.tolist() if translation_vector is not None else None
         }
         
     except Exception as e:
