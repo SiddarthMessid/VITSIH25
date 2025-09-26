@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1
 import pandas as pd
 import time
 import os
@@ -101,7 +102,7 @@ with tab1:
             col1, col2, col3 = st.columns(3)
             
             with col1:
-                st.metric("Length", len(st.session_state.sequence_record.seq))
+                st.metric("Length", len(st.session_state.sequence_record.seq) if st.session_state.sequence_record and st.session_state.sequence_record.seq else 0)
             
             with col2:
                 st.metric("ID", st.session_state.sequence_record.id)
@@ -109,8 +110,9 @@ with tab1:
             with col3:
                 st.metric("Description", st.session_state.sequence_record.description[:30] + "..." if len(st.session_state.sequence_record.description) > 30 else st.session_state.sequence_record.description)
             
+            seq_str = str(st.session_state.sequence_record.seq) if st.session_state.sequence_record and st.session_state.sequence_record.seq else ""
             st.text_area("Sequence preview:", 
-                        value=str(st.session_state.sequence_record.seq)[:200] + ("..." if len(st.session_state.sequence_record.seq) > 200 else ""),
+                        value=seq_str[:200] + ("..." if len(seq_str) > 200 else ""),
                         height=100, 
                         disabled=True)
 
@@ -232,7 +234,7 @@ with tab3:
                     
                     try:
                         viewer = create_structure_viewer(selected_structure['file_path'])
-                        st.components.v1.html(viewer, height=500)
+                        streamlit.components.v1.html(viewer, height=500)
                     except Exception as e:
                         st.error(f"Error creating 3D viewer: {str(e)}")
                 
@@ -318,7 +320,7 @@ with tab4:
         # Alignment visualization
         st.subheader("Alignment Region Analysis")
         
-        if st.session_state.sequence_record:
+        if st.session_state.sequence_record and st.session_state.sequence_record.seq:
             fig_alignment = create_alignment_plot(df_results, len(st.session_state.sequence_record.seq))
             st.plotly_chart(fig_alignment, use_container_width=True)
         
@@ -341,13 +343,16 @@ with tab4:
         with col2:
             # Export JSON
             json_data = df_results.to_json(orient='records', indent=2)
-            st.download_button(
-                label="📄 Download JSON",
-                data=json_data,
-                file_name=f"blast_results_{time.strftime('%Y%m%d_%H%M%S')}.json",
-                mime="application/json",
-                use_container_width=True
-            )
+            if json_data:
+                st.download_button(
+                    label="📄 Download JSON",
+                    data=json_data.encode('utf-8'),
+                    file_name=f"blast_results_{time.strftime('%Y%m%d_%H%M%S')}.json",
+                    mime="application/json",
+                    use_container_width=True
+                )
+            else:
+                st.error("No data available for JSON export")
         
         with col3:
             # Export summary report
@@ -358,7 +363,7 @@ Generated: {time.strftime('%Y-%m-%d %H:%M:%S')}
 Query Information:
 - ID: {st.session_state.sequence_record.id}
 - Description: {st.session_state.sequence_record.description}
-- Length: {len(st.session_state.sequence_record.seq)} amino acids
+- Length: {len(st.session_state.sequence_record.seq) if st.session_state.sequence_record.seq else 0} amino acids
 
 Search Parameters:
 - E-value threshold: {expect_threshold}
@@ -372,8 +377,8 @@ Results Summary:
 
 Top 5 Hits:
 """
-                for i, hit in enumerate(df_results.head().itertuples(), 1):
-                    report += f"{i}. {hit.pdb_id} - E-value: {hit.evalue:.2e}, Identity: {hit.identity}\n"
+                for i, (_, hit) in enumerate(df_results.head().iterrows(), 1):
+                    report += f"{i}. {hit['pdb_id']} - E-value: {hit['evalue']:.2e}, Identity: {hit['identity']}\n"
                 
                 st.download_button(
                     label="📝 Download Report",

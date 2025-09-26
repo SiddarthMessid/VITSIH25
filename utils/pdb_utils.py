@@ -5,7 +5,7 @@ PDB structure utilities for downloading and processing structures
 import os
 import urllib.request
 import urllib.error
-from Bio.PDB import PDBParser
+from Bio.PDB.PDBParser import PDBParser
 import requests
 
 
@@ -75,6 +75,9 @@ def get_structure_info(pdb_file_path):
         parser = PDBParser(QUIET=True)
         structure = parser.get_structure("structure", pdb_file_path)
         
+        if structure is None:
+            return {}
+        
         # Get basic structure information
         info = {
             'num_models': len(list(structure.get_models())),
@@ -116,18 +119,19 @@ def get_pdb_sequence(pdb_file_path, chain_id='A'):
         
         sequence = ""
         
-        for model in structure:
-            for chain in model:
-                if chain.id == chain_id:
-                    for residue in chain:
-                        if residue.id[0] == ' ':  # Standard residue
-                            resname = residue.get_resname()
-                            if resname in aa_dict:
-                                sequence += aa_dict[resname]
-                            else:
-                                sequence += 'X'  # Unknown amino acid
-                    break
-            break
+        if structure is not None:
+            for model in structure:
+                for chain in model:
+                    if chain.id == chain_id:
+                        for residue in chain:
+                            if residue.id[0] == ' ':  # Standard residue
+                                resname = residue.get_resname()
+                                if resname in aa_dict:
+                                    sequence += aa_dict[resname]
+                                else:
+                                    sequence += 'X'  # Unknown amino acid
+                        break
+                break
         
         return sequence
         
