@@ -4,6 +4,16 @@
 
 This is a Streamlit-based bioinformatics application that enables researchers to search for similar protein structures using BLAST (Basic Local Alignment Search Tool) and visualize the results in 3D. The application integrates with the NCBI BLAST service to search against the Protein Data Bank (PDB) database, downloads matching protein structures, and provides interactive 3D visualization capabilities. The tool is designed for protein analysis workflows, allowing users to input protein sequences, perform similarity searches, and explore structural homologs through an intuitive web interface.
 
+## Recent Changes
+
+### 2025-09-26: Project Import and Setup
+- Successfully imported GitHub project into Replit environment
+- Configured Streamlit server settings for Replit (0.0.0.0:5000 with headless mode)
+- Set up workflow for continuous development server
+- Configured deployment settings for autoscale production deployment
+- All dependencies properly installed and working
+- Application running successfully on port 5000
+
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
