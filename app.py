@@ -154,19 +154,156 @@ with tab2:
     
     # Display results
     if st.session_state.pdb_hits:
-        st.subheader("Top BLAST Hits")
+        st.subheader("BLAST Hits")
         
         # Create results DataFrame
         df_results = pd.DataFrame(st.session_state.pdb_hits)
         
-        # Display interactive table
+        # Advanced filtering and sorting options
+        with st.expander("🔧 Advanced Filtering & Sorting", expanded=False):
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.subheader("Filters")
+                # E-value filter
+                evalue_filter = st.checkbox("Filter by E-value", value=False)
+                if evalue_filter:
+                    min_evalue = st.number_input("Min E-value", value=0.0, format="%.2e", min_value=0.0)
+                    max_evalue = st.number_input("Max E-value", value=float(df_results['evalue'].max()), format="%.2e", min_value=0.0)
+                else:
+                    min_evalue, max_evalue = 0.0, float('inf')
+                
+                # Bit score filter
+                bitscore_filter = st.checkbox("Filter by Bit Score", value=False)
+                if bitscore_filter:
+                    min_bitscore = st.number_input("Min Bit Score", value=float(df_results['bitscore'].min()), min_value=0.0)
+                    max_bitscore = st.number_input("Max Bit Score", value=float(df_results['bitscore'].max()), min_value=0.0)
+                else:
+                    min_bitscore, max_bitscore = 0.0, float('inf')
+            
+            with col2:
+                # Identity filter  
+                identity_filter = st.checkbox("Filter by Identity", value=False)
+                if identity_filter:
+                    min_identity = st.number_input("Min Identity Count", value=int(df_results['identity'].min()), min_value=0)
+                    max_identity = st.number_input("Max Identity Count", value=int(df_results['identity'].max()), min_value=0)
+                else:
+                    min_identity, max_identity = 0, float('inf')
+                
+                # Alignment length filter
+                alignment_filter = st.checkbox("Filter by Alignment Length", value=False)
+                if alignment_filter:
+                    min_alignment = st.number_input("Min Alignment Length", value=int(df_results['alignment_length'].min()), min_value=1)
+                    max_alignment = st.number_input("Max Alignment Length", value=int(df_results['alignment_length'].max()), min_value=1)
+                else:
+                    min_alignment, max_alignment = 0, float('inf')
+            
+            with col3:
+                st.subheader("Sorting")
+                # Sort options
+                sort_column = st.selectbox(
+                    "Sort by",
+                    options=['rank', 'evalue', 'bitscore', 'identity', 'alignment_length', 'pdb_id'],
+                    index=1  # Default to E-value
+                )
+                sort_ascending = st.radio("Sort order", ["Ascending", "Descending"], index=0) == "Ascending"
+                
+                # PDB ID pattern filter
+                pdb_pattern_filter = st.checkbox("Filter by PDB ID pattern", value=False)
+                if pdb_pattern_filter:
+                    pdb_pattern = st.text_input("PDB ID contains (case-insensitive):", value="")
+                else:
+                    pdb_pattern = ""
+                
+                # Apply filters button
+                col_apply, col_reset = st.columns(2)
+                with col_apply:
+                    apply_filters = st.button("🔄 Apply Filters & Sort", type="primary", use_container_width=True)
+                with col_reset:
+                    reset_filters = st.button("🔄 Reset All", use_container_width=True)
+                
+                # Reset filters functionality
+                if reset_filters:
+                    st.session_state.apply_filters = False
+                    st.rerun()
+        
+        # Apply filtering and sorting
+        if 'apply_filters' not in st.session_state:
+            st.session_state.apply_filters = False
+        
+        if apply_filters or st.session_state.apply_filters:
+            st.session_state.apply_filters = True
+            
+            # Apply filters
+            filtered_df = df_results.copy()
+            
+            # E-value filter
+            if evalue_filter:
+                filtered_df = filtered_df[
+                    (filtered_df['evalue'] >= min_evalue) & 
+                    (filtered_df['evalue'] <= max_evalue)
+                ]
+            
+            # Bit score filter
+            if bitscore_filter:
+                filtered_df = filtered_df[
+                    (filtered_df['bitscore'] >= min_bitscore) & 
+                    (filtered_df['bitscore'] <= max_bitscore)
+                ]
+            
+            # Identity filter
+            if identity_filter:
+                filtered_df = filtered_df[
+                    (filtered_df['identity'] >= min_identity) & 
+                    (filtered_df['identity'] <= max_identity)
+                ]
+            
+            # Alignment length filter
+            if alignment_filter:
+                filtered_df = filtered_df[
+                    (filtered_df['alignment_length'] >= min_alignment) & 
+                    (filtered_df['alignment_length'] <= max_alignment)
+                ]
+            
+            # PDB ID pattern filter
+            if pdb_pattern_filter and pdb_pattern:
+                # Ensure we have a DataFrame and convert PDB column to string if needed
+                if not filtered_df.empty:
+                    filtered_df = filtered_df[
+                        filtered_df['pdb_id'].astype(str).str.contains(pdb_pattern, case=False, na=False)
+                    ]
+            
+            # Apply sorting
+            if not filtered_df.empty and sort_column in filtered_df.columns:
+                filtered_df = filtered_df.sort_values(by=sort_column, ascending=sort_ascending).reset_index(drop=True)
+            
+            # Update rank based on new order
+            filtered_df['filtered_rank'] = range(1, len(filtered_df) + 1)
+            
+            df_results = filtered_df
+            
+            # Show filter results
+            if len(filtered_df) < len(st.session_state.pdb_hits):
+                st.info(f"📊 Showing {len(filtered_df)} of {len(st.session_state.pdb_hits)} hits after filtering")
+            else:
+                st.info(f"📊 Showing all {len(filtered_df)} hits (sorted by {sort_column})")
+        
+        # Display interactive table  
+        # Ensure df_results is defined, fallback to original data if not
+        if 'df_results' not in locals() or df_results is None:
+            df_results = pd.DataFrame(st.session_state.pdb_hits)
+            
         display_columns = ['rank', 'pdb_id', 'evalue', 'bitscore', 'identity', 'alignment_length']
+        if 'filtered_rank' in df_results.columns:
+            display_columns[0] = 'filtered_rank'
+        
         st.dataframe(
             df_results[display_columns],
             use_container_width=True,
             hide_index=True,
             column_config={
                 "rank": st.column_config.NumberColumn("Rank", width="small"),
+                "filtered_rank": st.column_config.NumberColumn("Rank", width="small"),
                 "pdb_id": st.column_config.TextColumn("PDB ID", width="small"),
                 "evalue": st.column_config.NumberColumn("E-value", format="%.2e"),
                 "bitscore": st.column_config.NumberColumn("Bit Score", format="%.1f"),
@@ -175,18 +312,36 @@ with tab2:
             }
         )
         
-        # E-value distribution plot
-        st.subheader("E-value Distribution")
-        # Prepare data for log scale (clip zeros to avoid log issues)
-        df_plot = df_results.copy()
-        df_plot['evalue'] = pd.to_numeric(df_plot['evalue'], errors='coerce')
-        df_plot['evalue'] = np.where(df_plot['evalue'] <= 0, 1e-300, df_plot['evalue'])
+        # Results visualization
+        st.subheader("Results Visualization")
         
-        fig = px.bar(df_plot, x='pdb_id', y='evalue', 
-                     title="E-values of BLAST Hits",
-                     labels={'evalue': 'E-value', 'pdb_id': 'PDB ID'})
-        fig.update_yaxes(type="log")  # Correct plotly syntax for log scale
-        st.plotly_chart(fig, use_container_width=True)
+        viz_col1, viz_col2 = st.columns(2)
+        
+        with viz_col1:
+            # E-value distribution plot
+            st.subheader("E-value Distribution")
+            # Prepare data for log scale (clip zeros to avoid log issues)
+            df_plot = df_results.copy()
+            df_plot['evalue'] = pd.to_numeric(df_plot['evalue'], errors='coerce')
+            df_plot['evalue'] = np.where(df_plot['evalue'] <= 0, 1e-300, df_plot['evalue'])
+            
+            fig = px.bar(df_plot, x='pdb_id', y='evalue', 
+                         title=f"E-values of {len(df_plot)} BLAST Hits",
+                         labels={'evalue': 'E-value', 'pdb_id': 'PDB ID'})
+            fig.update_yaxes(type="log")  # Correct plotly syntax for log scale
+            st.plotly_chart(fig, use_container_width=True)
+        
+        with viz_col2:
+            # Identity vs Bit Score scatter
+            st.subheader("Identity vs Bit Score")
+            fig_scatter = px.scatter(df_results, x='identity', y='bitscore',
+                                   hover_data=['pdb_id', 'evalue'],
+                                   color='evalue',
+                                   size='alignment_length',
+                                   title=f"Identity vs Bit Score ({len(df_results)} hits)",
+                                   labels={'identity': 'Identity Count', 'bitscore': 'Bit Score', 'evalue': 'E-value'})
+            fig_scatter.update_layout(coloraxis_colorbar=dict(title="E-value"))
+            st.plotly_chart(fig_scatter, use_container_width=True)
         
     else:
         st.info("👆 Run a BLAST search to see results here")
@@ -286,88 +441,100 @@ with tab4:
         # Summary statistics
         st.subheader("📊 Summary Statistics")
         
-        df_results = pd.DataFrame(st.session_state.pdb_hits)
+        # Use filtered results if available, otherwise use all results
+        if st.session_state.pdb_hits:
+            if 'df_results' in locals() and df_results is not None and len(df_results) < len(st.session_state.pdb_hits):
+                analysis_df = df_results  # Use filtered results
+                st.info(f"📊 Statistics based on {len(analysis_df)} filtered results")
+            else:
+                analysis_df = pd.DataFrame(st.session_state.pdb_hits)  # Use all results
+        else:
+            analysis_df = pd.DataFrame()
         
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            st.metric("Total Hits", len(df_results))
-        
-        with col2:
-            st.metric("Avg E-value", f"{df_results['evalue'].mean():.2e}")
-        
-        with col3:
-            st.metric("Avg Identity", f"{df_results['identity'].mean():.1f}")
-        
-        with col4:
-            st.metric("Avg Bit Score", f"{df_results['bitscore'].mean():.1f}")
+        if not analysis_df.empty:
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                st.metric("Total Hits", len(analysis_df))
+            
+            with col2:
+                st.metric("Avg E-value", f"{analysis_df['evalue'].mean():.2e}")
+            
+            with col3:
+                st.metric("Avg Identity", f"{analysis_df['identity'].mean():.1f}")
+            
+            with col4:
+                st.metric("Avg Bit Score", f"{analysis_df['bitscore'].mean():.1f}")
+        else:
+            st.warning("No data available for statistics.")
         
         # Detailed statistics
-        st.subheader("Detailed Statistics")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            # Identity distribution
-            fig_identity = px.histogram(df_results, x='identity', 
-                                      title="Identity Distribution",
-                                      labels={'identity': 'Identity', 'count': 'Frequency'})
-            st.plotly_chart(fig_identity, use_container_width=True)
-        
-        with col2:
-            # Bit score vs E-value
-            df_scatter = df_results.copy()
-            df_scatter['evalue'] = pd.to_numeric(df_scatter['evalue'], errors='coerce')
-            df_scatter['evalue'] = np.where(df_scatter['evalue'] <= 0, 1e-300, df_scatter['evalue'])
+        if not analysis_df.empty:
+            st.subheader("Detailed Statistics")
             
-            fig_scatter = px.scatter(df_scatter, x='evalue', y='bitscore',
-                                   hover_data=['pdb_id', 'identity'],
-                                   title="Bit Score vs E-value",
-                                   labels={'evalue': 'E-value', 'bitscore': 'Bit Score'})
-            fig_scatter.update_xaxes(type="log")
-            st.plotly_chart(fig_scatter, use_container_width=True)
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                # Identity distribution
+                fig_identity = px.histogram(analysis_df, x='identity', 
+                                          title="Identity Distribution",
+                                          labels={'identity': 'Identity', 'count': 'Frequency'})
+                st.plotly_chart(fig_identity, use_container_width=True)
+            
+            with col2:
+                # Bit score vs E-value
+                df_scatter = analysis_df.copy()
+                df_scatter['evalue'] = pd.to_numeric(df_scatter['evalue'], errors='coerce')
+                df_scatter['evalue'] = np.where(df_scatter['evalue'] <= 0, 1e-300, df_scatter['evalue'])
+                
+                fig_scatter = px.scatter(df_scatter, x='evalue', y='bitscore',
+                                       hover_data=['pdb_id', 'identity'],
+                                       title="Bit Score vs E-value",
+                                       labels={'evalue': 'E-value', 'bitscore': 'Bit Score'})
+                fig_scatter.update_xaxes(type="log")
+                st.plotly_chart(fig_scatter, use_container_width=True)
         
-        # Alignment visualization
-        st.subheader("Alignment Region Analysis")
+            # Alignment visualization
+            st.subheader("Alignment Region Analysis")
+            
+            if st.session_state.sequence_record and st.session_state.sequence_record.seq:
+                fig_alignment = create_alignment_plot(analysis_df, len(st.session_state.sequence_record.seq))
+                st.plotly_chart(fig_alignment, use_container_width=True)
         
-        if st.session_state.sequence_record and st.session_state.sequence_record.seq:
-            fig_alignment = create_alignment_plot(df_results, len(st.session_state.sequence_record.seq))
-            st.plotly_chart(fig_alignment, use_container_width=True)
-        
-        # Export options
-        st.subheader("📤 Export Results")
-        
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            # Export CSV
-            csv_data = df_results.to_csv(index=False)
-            st.download_button(
-                label="📋 Download CSV",
-                data=csv_data,
-                file_name=f"blast_results_{time.strftime('%Y%m%d_%H%M%S')}.csv",
-                mime="text/csv",
-                use_container_width=True
-            )
-        
-        with col2:
-            # Export JSON
-            json_data = df_results.to_json(orient='records', indent=2)
-            if json_data:
+            # Export options
+            st.subheader("📤 Export Results")
+            
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                # Export CSV
+                csv_data = analysis_df.to_csv(index=False)
                 st.download_button(
-                    label="📄 Download JSON",
-                    data=json_data.encode('utf-8'),
-                    file_name=f"blast_results_{time.strftime('%Y%m%d_%H%M%S')}.json",
-                    mime="application/json",
+                    label="📋 Download CSV",
+                    data=csv_data,
+                    file_name=f"blast_results_{time.strftime('%Y%m%d_%H%M%S')}.csv",
+                    mime="text/csv",
                     use_container_width=True
                 )
-            else:
-                st.error("No data available for JSON export")
+            
+            with col2:
+                # Export JSON
+                json_data = analysis_df.to_json(orient='records', indent=2)
+                if json_data:
+                    st.download_button(
+                        label="📄 Download JSON",
+                        data=json_data.encode('utf-8'),
+                        file_name=f"blast_results_{time.strftime('%Y%m%d_%H%M%S')}.json",
+                        mime="application/json",
+                        use_container_width=True
+                    )
+                else:
+                    st.error("No data available for JSON export")
         
-        with col3:
-            # Export summary report
-            if st.session_state.sequence_record:
-                report = f"""BLAST Search Report
+            with col3:
+                # Export summary report
+                if st.session_state.sequence_record and not analysis_df.empty:
+                    report = f"""BLAST Search Report
 Generated: {time.strftime('%Y-%m-%d %H:%M:%S')}
 
 Query Information:
@@ -380,23 +547,25 @@ Search Parameters:
 - Maximum hits: {hitlist_size}
 
 Results Summary:
-- Total hits found: {len(df_results)}
-- Average E-value: {df_results['evalue'].mean():.2e}
-- Average identity: {df_results['identity'].mean():.1f}
-- Average bit score: {df_results['bitscore'].mean():.1f}
+- Total hits found: {len(analysis_df)}
+- Average E-value: {analysis_df['evalue'].mean():.2e}
+- Average identity: {analysis_df['identity'].mean():.1f}
+- Average bit score: {analysis_df['bitscore'].mean():.1f}
 
 Top 5 Hits:
 """
-                for i, (_, hit) in enumerate(df_results.head().iterrows(), 1):
-                    report += f"{i}. {hit['pdb_id']} - E-value: {hit['evalue']:.2e}, Identity: {hit['identity']}\n"
-                
-                st.download_button(
-                    label="📝 Download Report",
-                    data=report,
-                    file_name=f"blast_report_{time.strftime('%Y%m%d_%H%M%S')}.txt",
-                    mime="text/plain",
-                    use_container_width=True
-                )
+                    for i, (_, hit) in enumerate(analysis_df.head().iterrows(), 1):
+                        report += f"{i}. {hit['pdb_id']} - E-value: {hit['evalue']:.2e}, Identity: {hit['identity']}\n"
+                    
+                    st.download_button(
+                        label="📝 Download Report",
+                        data=report,
+                        file_name=f"blast_report_{time.strftime('%Y%m%d_%H%M%S')}.txt",
+                        mime="text/plain",
+                        use_container_width=True
+                    )
+        else:
+            st.warning("No results available for analysis and export.")
     
     else:
         st.info("🔍 Perform a BLAST search to see analysis and export options")
