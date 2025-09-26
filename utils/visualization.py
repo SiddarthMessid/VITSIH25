@@ -82,10 +82,13 @@ def create_styled_visualization(pdb_file_path, style='cartoon', width=600, heigh
         if style == 'cartoon':
             viewer.setStyle({'cartoon': {'color': 'spectrum'}})
         elif style == 'surface':
-            viewer.setStyle({'surface': {'opacity': 0.8, 'color': 'spectrum'}})
+            # Clear any existing styles and add surface representation
+            viewer.setStyle({})
+            viewer.addSurface(py3Dmol.VDW, {'opacity': 0.8, 'color': 'spectrum'})
         elif style == 'ball_stick':
-            viewer.setStyle({'stick': {'colorscheme': 'Jmol', 'radius': 0.2}})
-            viewer.setStyle({'sphere': {'scale': 0.3, 'colorscheme': 'Jmol'}})
+            # Combine stick and sphere in a single setStyle call
+            viewer.setStyle({'stick': {'colorscheme': 'Jmol', 'radius': 0.2}, 
+                           'sphere': {'scale': 0.3, 'colorscheme': 'Jmol'}})
         elif style == 'ribbon':
             viewer.setStyle({'cartoon': {'color': 'spectrum', 'style': 'ribbon'}})
         elif style == 'spacefill':
