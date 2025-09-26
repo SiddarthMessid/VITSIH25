@@ -13,7 +13,7 @@ import plotly.graph_objects as go
 
 from utils.blast_utils import perform_blast_search, extract_pdb_ids_from_blast, create_multiple_alignment
 from utils.pdb_utils import download_pdb_structure, get_structure_info
-from utils.visualization import create_structure_viewer, create_alignment_plot, create_msa_visualization, create_conservation_plot
+from utils.visualization import create_structure_viewer, create_styled_visualization, create_alignment_plot, create_msa_visualization, create_conservation_plot
 from utils.structure_comparison import (create_structure_comparison_viewer, calculate_structure_alignment, 
                                        create_comparison_metrics_table, create_rmsd_heatmap, 
                                        perform_pairwise_alignment)
@@ -478,44 +478,92 @@ with tab3:
                     status_text.text(f"✅ Downloaded {len(downloaded)} structures")
                     st.success(f"Successfully downloaded {len(downloaded)} structures!")
         
-        # Structure selection and visualization
+        # Interactive Structure Explorer
         if st.session_state.downloaded_structures:
-            st.subheader("Structure Viewer")
+            st.subheader("🔬 Interactive Structure Explorer")
             
-            # Structure selector
-            structure_options = {f"{s['pdb_id']} (E-value: {s['evalue']:.2e})": s for s in st.session_state.downloaded_structures}
-            selected_structure_key = st.selectbox("Select structure to visualize:", list(structure_options.keys()))
+            # Control Panel
+            with st.expander("🎛️ Visualization Controls", expanded=True):
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    # Structure selector
+                    structure_options = {f"{s['pdb_id']} (E-val: {s['evalue']:.1e})": s for s in st.session_state.downloaded_structures}
+                    selected_structure_key = st.selectbox(
+                        "Select Structure:",
+                        list(structure_options.keys()),
+                        key="structure_selector"
+                    )
+                
+                with col2:
+                    # Style selector
+                    style_options = {
+                        'Cartoon': 'cartoon',
+                        'Surface': 'surface', 
+                        'Ball & Stick': 'ball_stick',
+                        'Ribbon': 'ribbon',
+                        'Spacefill': 'spacefill'
+                    }
+                    selected_style_key = st.selectbox(
+                        "Visualization Style:",
+                        list(style_options.keys()),
+                        key="style_selector"
+                    )
             
             if selected_structure_key:
                 selected_structure = structure_options[selected_structure_key]
+                selected_style = style_options[selected_style_key]
                 
+                # Main visualization area
                 col1, col2 = st.columns([2, 1])
                 
                 with col1:
-                    # 3D visualization
+                    # 3D visualization with selected style
                     st.subheader(f"3D Structure: {selected_structure['pdb_id']}")
+                    st.caption(f"Style: {selected_style_key}")
                     
                     try:
-                        viewer = create_structure_viewer(selected_structure['file_path'])
-                        streamlit.components.v1.html(viewer, height=500)
+                        viewer = create_styled_visualization(
+                            selected_structure['file_path'], 
+                            style=selected_style,
+                            width=700,
+                            height=500
+                        )
+                        streamlit.components.v1.html(viewer, height=520)
                     except Exception as e:
                         st.error(f"Error creating 3D viewer: {str(e)}")
                 
                 with col2:
-                    # Structure information
-                    st.subheader("Structure Info")
-                    info_data = {
-                        "PDB ID": selected_structure['pdb_id'],
-                        "E-value": f"{selected_structure['evalue']:.2e}",
-                        "Bit Score": f"{selected_structure['bitscore']:.1f}",
-                        "Identity": selected_structure['identity'],
-                        "Alignment Length": selected_structure['alignment_length'],
-                        "Query Range": f"{selected_structure['query_start']}-{selected_structure['query_end']}",
-                        "Hit Range": f"{selected_structure['hit_start']}-{selected_structure['hit_end']}"
-                    }
+                    # Enhanced structure information
+                    st.subheader("📊 Structure Information")
                     
-                    for key, value in info_data.items():
-                        st.metric(key, value)
+                    # Key metrics
+                    col_a, col_b = st.columns(2)
+                    with col_a:
+                        st.metric("PDB ID", selected_structure['pdb_id'])
+                        st.metric("Rank", f"#{selected_structure['rank']}")
+                        st.metric("E-value", f"{selected_structure['evalue']:.2e}")
+                    
+                    with col_b:
+                        st.metric("Bit Score", f"{selected_structure['bitscore']:.1f}")
+                        st.metric("Identity", selected_structure['identity'])
+                        st.metric("Alignment Length", selected_structure['alignment_length'])
+                    
+                    # Alignment details
+                    st.subheader("🧬 Alignment Details")
+                    identity_percent = (selected_structure['identity'] / selected_structure['alignment_length'] * 100)
+                    st.metric("Identity %", f"{identity_percent:.1f}%")
+                    st.metric("Query Range", f"{selected_structure['query_start']}-{selected_structure['query_end']}")
+                    st.metric("Hit Range", f"{selected_structure['hit_start']}-{selected_structure['hit_end']}")
+                    
+                    # Description
+                    st.subheader("📝 Description")
+                    st.text_area(
+                        "Structure Description:",
+                        value=selected_structure['description'],
+                        height=80,
+                        disabled=True
+                    )
                     
                     # Download PDB file
                     if os.path.exists(selected_structure['file_path']):

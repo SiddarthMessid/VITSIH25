@@ -1,0 +1,77 @@
+def create_interactive_explorer(downloaded_structures):
+    """
+    Create interactive widget for exploring different structures and styles
+    """
+    if not downloaded_structures:
+        print("No structures available for interactive exploration.")
+        return None
+    
+    # Create dropdown options
+    structure_options = [(f"{s['pdb_id']} (E-val: {s['evalue']:.1e})", s) for s in downloaded_structures]
+    
+    # Widgets
+    structure_dropdown = widgets.Dropdown(
+        options=structure_options,
+        description='Structure:',
+        style={'description_width': 'initial'}
+    )
+    
+    style_dropdown = widgets.Dropdown(
+        options=[
+            ('Cartoon', 'cartoon'),
+            ('Surface', 'surface'), 
+            ('Ball & Stick', 'ball_stick'),
+            ('Ribbon', 'ribbon'),
+            ('Spacefill', 'spacefill')
+        ],
+        value='cartoon',
+        description='Style:'
+    )
+    
+    info_output = widgets.Output()
+    viz_output = widgets.Output()
+    
+    def update_visualization(*args):
+        with info_output:
+            info_output.clear_output()
+            selected_structure = structure_dropdown.value
+            
+            print(f"PDB ID: {selected_structure['pdb_id']}")
+            print(f"Rank: #{selected_structure['rank']}")
+            print(f"E-value: {selected_structure['evalue']:.2e}")
+            print(f"Bit Score: {selected_structure['bitscore']:.1f}")
+            print(f"Identity: {selected_structure['identity']}/{selected_structure['alignment_length']} ({selected_structure['identity']/selected_structure['alignment_length']*100:.1f}%)")
+            print(f"Description: {selected_structure['description']}")
+        
+        with viz_output:
+            viz_output.clear_output()
+            selected_style = style_dropdown.value
+            
+            view = create_styled_visualization(selected_structure, selected_style)
+            if view:
+                display(view)
+    
+    # Connect events
+    structure_dropdown.observe(update_visualization, names='value')
+    style_dropdown.observe(update_visualization, names='value')
+    
+    # Initial display
+    update_visualization()
+    
+    # Create interface
+    interface = widgets.VBox([
+        widgets.HTML("<h3>Interactive Structure Explorer</h3>"),
+        widgets.HBox([structure_dropdown, style_dropdown]),
+        info_output,
+        viz_output
+    ])
+    
+    return interface
+
+# Create interactive explorer
+if 'downloaded_structures' in locals():
+    interactive_explorer = create_interactive_explorer(downloaded_structures)
+    if interactive_explorer:
+        display(interactive_explorer)
+else:
+    print("No downloaded structures available. Please run previous cells first.")

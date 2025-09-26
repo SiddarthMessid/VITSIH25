@@ -53,6 +53,57 @@ def create_structure_viewer(pdb_file_path, width=600, height=400):
         return f"<p>Error creating 3D viewer: {str(e)}</p>"
 
 
+def create_styled_visualization(pdb_file_path, style='cartoon', width=600, height=400):
+    """
+    Create 3D structure viewer with different visualization styles
+    
+    Args:
+        pdb_file_path: Path to PDB file
+        style: Visualization style ('cartoon', 'surface', 'ball_stick', 'ribbon', 'spacefill')
+        width: Viewer width (default: 600)
+        height: Viewer height (default: 400)
+    
+    Returns:
+        HTML string for embedding the viewer
+    """
+    try:
+        if not os.path.exists(pdb_file_path):
+            return "<p>PDB file not found</p>"
+        
+        # Read PDB file content
+        with open(pdb_file_path, 'r') as f:
+            pdb_content = f.read()
+        
+        # Create py3Dmol viewer
+        viewer = py3Dmol.view(width=width, height=height)
+        viewer.addModel(pdb_content, 'pdb')
+        
+        # Apply different styles based on selection
+        if style == 'cartoon':
+            viewer.setStyle({'cartoon': {'color': 'spectrum'}})
+        elif style == 'surface':
+            viewer.setStyle({'surface': {'opacity': 0.8, 'color': 'spectrum'}})
+        elif style == 'ball_stick':
+            viewer.setStyle({'stick': {'colorscheme': 'Jmol', 'radius': 0.2}})
+            viewer.setStyle({'sphere': {'scale': 0.3, 'colorscheme': 'Jmol'}})
+        elif style == 'ribbon':
+            viewer.setStyle({'cartoon': {'color': 'spectrum', 'style': 'ribbon'}})
+        elif style == 'spacefill':
+            viewer.setStyle({'sphere': {'colorscheme': 'Jmol'}})
+        else:
+            # Default to cartoon
+            viewer.setStyle({'cartoon': {'color': 'spectrum'}})
+        
+        # Center and zoom
+        viewer.zoomTo()
+        
+        # Return HTML
+        return viewer._make_html()
+        
+    except Exception as e:
+        return f"<p>Error creating 3D viewer: {str(e)}</p>"
+
+
 def create_alignment_plot(df_results, query_length):
     """
     Create alignment region visualization showing where each BLAST hit aligns to the query sequence
