@@ -364,9 +364,15 @@ with tab2:
             if create_msa or 'msa_data' in st.session_state:
                 if create_msa:
                     with st.spinner("Creating multiple sequence alignment..."):
+                        # Ensure df_results is a DataFrame before calling to_dict
+                        if hasattr(df_results, 'to_dict'):
+                            records_data = df_results.to_dict('records')
+                        else:
+                            records_data = df_results if isinstance(df_results, list) else []
+                        
                         msa_data = create_multiple_alignment(
                             st.session_state.sequence_record.seq,
-                            df_results.to_dict('records'),
+                            records_data,
                             max_sequences=max_sequences
                         )
                         st.session_state.msa_data = msa_data
@@ -665,7 +671,7 @@ with tab4:
         else:
             analysis_df = pd.DataFrame()
         
-        if not analysis_df.empty:
+        if len(analysis_df) > 0:
             col1, col2, col3, col4 = st.columns(4)
             
             with col1:
@@ -683,7 +689,7 @@ with tab4:
             st.warning("No data available for statistics.")
         
         # Detailed statistics
-        if not analysis_df.empty:
+        if len(analysis_df) > 0:
             st.subheader("Detailed Statistics")
             
             col1, col2 = st.columns(2)
@@ -722,7 +728,7 @@ with tab4:
             
             with col1:
                 # Export CSV
-                csv_data = analysis_df.to_csv(index=False)
+                csv_data = analysis_df.to_csv(index=False) if hasattr(analysis_df, 'to_csv') else ""
                 st.download_button(
                     label="📋 Download CSV",
                     data=csv_data,
@@ -733,7 +739,7 @@ with tab4:
             
             with col2:
                 # Export JSON
-                json_data = analysis_df.to_json(orient='records', indent=2)
+                json_data = analysis_df.to_json(orient='records', indent=2) if hasattr(analysis_df, 'to_json') else ""
                 if json_data:
                     st.download_button(
                         label="📄 Download JSON",
@@ -747,7 +753,7 @@ with tab4:
         
             with col3:
                 # Export summary report
-                if st.session_state.sequence_record and not analysis_df.empty:
+                if st.session_state.sequence_record and len(analysis_df) > 0:
                     report = f"""BLAST Search Report
 Generated: {time.strftime('%Y-%m-%d %H:%M:%S')}
 
@@ -768,8 +774,19 @@ Results Summary:
 
 Top 5 Hits:
 """
-                    for i, (_, hit) in enumerate(analysis_df.head().iterrows(), 1):
-                        report += f"{i}. {hit['pdb_id']} - E-value: {hit['evalue']:.2e}, Identity: {hit['identity']}\n"
+                    # Get top 5 hits for report
+                    if hasattr(analysis_df, 'head') and hasattr(analysis_df, 'iterrows'):
+                        top_hits = analysis_df.head()
+                        for i, (_, hit) in enumerate(top_hits.iterrows(), 1):
+                            report += f"{i}. {hit['pdb_id']} - E-value: {hit['evalue']:.2e}, Identity: {hit['identity']}\n"
+                    else:
+                        # Fallback for list-like data
+                        top_hits = analysis_df[:5] if isinstance(analysis_df, list) else []
+                        for i, hit in enumerate(top_hits, 1):
+                            pdb_id = hit.get('pdb_id', 'Unknown') if isinstance(hit, dict) else 'Unknown'
+                            evalue = hit.get('evalue', 0) if isinstance(hit, dict) else 0
+                            identity = hit.get('identity', 0) if isinstance(hit, dict) else 0
+                            report += f"{i}. {pdb_id} - E-value: {evalue:.2e}, Identity: {identity}\n"
                     
                     st.download_button(
                         label="📝 Download Report",
