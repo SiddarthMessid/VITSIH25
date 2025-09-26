@@ -8,6 +8,8 @@ import pandas as pd
 import numpy as np
 import py3Dmol
 import os
+from Bio.PDB import PDBParser, Superimposer
+from Bio.PDB.vectors import Vector
 
 
 def create_structure_viewer(pdb_file_path, width=600, height=400):

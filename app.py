@@ -14,6 +14,9 @@ import plotly.graph_objects as go
 from utils.blast_utils import perform_blast_search, extract_pdb_ids_from_blast, create_multiple_alignment
 from utils.pdb_utils import download_pdb_structure, get_structure_info
 from utils.visualization import create_structure_viewer, create_alignment_plot, create_msa_visualization, create_conservation_plot
+from utils.structure_comparison import (create_structure_comparison_viewer, calculate_structure_alignment, 
+                                       create_comparison_metrics_table, create_rmsd_heatmap, 
+                                       perform_pairwise_alignment)
 
 # Page configuration
 st.set_page_config(
@@ -523,6 +526,124 @@ with tab3:
         
         else:
             st.info("👆 Download structures to visualize them in 3D")
+        
+        # Structure Comparison Section
+        if st.session_state.downloaded_structures and len(st.session_state.downloaded_structures) >= 2:
+            st.divider()
+            st.subheader("🔬 Structure Comparison")
+            
+            comparison_tab1, comparison_tab2 = st.tabs(["Overlay Viewer", "Alignment Metrics"])
+            
+            with comparison_tab1:
+                st.write("Compare multiple structures by overlaying them in a single 3D viewer:")
+                
+                # Structure selection for comparison
+                col1, col2 = st.columns([1, 2])
+                
+                with col1:
+                    st.write("**Select structures to compare:**")
+                    structure_selection = {}
+                    colors = ['red', 'blue', 'green', 'orange', 'purple', 'cyan']
+                    
+                    for i, structure in enumerate(st.session_state.downloaded_structures[:6]):  # Limit to 6 structures
+                        color = colors[i % len(colors)]
+                        selected = st.checkbox(
+                            f"{structure['pdb_id']} (E-val: {structure['evalue']:.2e})",
+                            value=i < 3,  # Select first 3 by default
+                            key=f"compare_{structure['pdb_id']}"
+                        )
+                        if selected:
+                            structure_selection[structure['pdb_id']] = {
+                                'structure': structure,
+                                'color': color
+                            }
+                    
+                    if len(structure_selection) >= 2:
+                        if st.button("🔬 Generate Comparison", type="primary", use_container_width=True):
+                            st.session_state.comparison_data = structure_selection
+                
+                with col2:
+                    # Display comparison viewer
+                    if hasattr(st.session_state, 'comparison_data') and st.session_state.comparison_data:
+                        try:
+                            # Prepare data for comparison viewer
+                            structure_data_list = []
+                            for pdb_id, data in st.session_state.comparison_data.items():
+                                structure_data_list.append({
+                                    'pdb_path': data['structure']['file_path'],
+                                    'pdb_id': pdb_id,
+                                    'color': data['color'],
+                                    'label': f"{pdb_id}"
+                                })
+                            
+                            # Create comparison viewer
+                            comparison_viewer = create_structure_comparison_viewer(structure_data_list)
+                            st.subheader(f"Comparing {len(structure_data_list)} Structures")
+                            streamlit.components.v1.html(comparison_viewer, height=600)
+                            
+                            # Legend
+                            st.write("**Structure Colors:**")
+                            legend_cols = st.columns(len(structure_data_list))
+                            for i, struct_data in enumerate(structure_data_list):
+                                with legend_cols[i]:
+                                    st.markdown(f"🔵 **{struct_data['pdb_id']}** - {struct_data['color']}")
+                                    
+                        except Exception as e:
+                            st.error(f"Error creating comparison viewer: {str(e)}")
+                    else:
+                        st.info("👈 Select at least 2 structures to compare")
+            
+            with comparison_tab2:
+                st.write("Structural alignment metrics and similarity analysis:")
+                
+                if len(st.session_state.downloaded_structures) >= 2:
+                    col1, col2 = st.columns([1, 1])
+                    
+                    with col1:
+                        chain_id = st.selectbox("Select chain for alignment:", ['A', 'B', 'C', 'D'], index=0)
+                        
+                        if st.button("⚖️ Calculate Pairwise Alignments", type="primary", use_container_width=True):
+                            with st.spinner("Calculating structural alignments..."):
+                                # Prepare structure paths and labels
+                                structure_paths = [s['file_path'] for s in st.session_state.downloaded_structures]
+                                structure_labels = [s['pdb_id'] for s in st.session_state.downloaded_structures]
+                                
+                                # Perform pairwise alignments
+                                rmsd_matrix, alignment_results = perform_pairwise_alignment(
+                                    structure_paths, structure_labels, chain_id
+                                )
+                                
+                                # Store results in session state
+                                st.session_state.alignment_results = alignment_results
+                                st.session_state.rmsd_matrix = rmsd_matrix
+                                st.session_state.structure_labels = structure_labels
+                    
+                    with col2:
+                        # Display results if available
+                        if hasattr(st.session_state, 'alignment_results') and st.session_state.alignment_results:
+                            # Metrics table
+                            metrics_df = create_comparison_metrics_table(st.session_state.alignment_results)
+                            if not metrics_df.empty:
+                                st.subheader("Alignment Metrics")
+                                st.dataframe(metrics_df, use_container_width=True)
+                                
+                                # Download metrics
+                                csv_data = metrics_df.to_csv(index=False)
+                                st.download_button(
+                                    label="📊 Download Metrics",
+                                    data=csv_data,
+                                    file_name=f"structure_comparison_metrics_{time.strftime('%Y%m%d_%H%M%S')}.csv",
+                                    mime="text/csv",
+                                    use_container_width=True
+                                )
+                    
+                    # RMSD Heatmap
+                    if hasattr(st.session_state, 'rmsd_matrix') and st.session_state.rmsd_matrix.size > 0:
+                        st.subheader("RMSD Similarity Matrix")
+                        heatmap_fig = create_rmsd_heatmap(st.session_state.rmsd_matrix, st.session_state.structure_labels)
+                        st.plotly_chart(heatmap_fig, use_container_width=True)
+                else:
+                    st.info("Need at least 2 downloaded structures for comparison analysis")
     
     else:
         st.info("🔍 Perform a BLAST search first to get structures for visualization")
