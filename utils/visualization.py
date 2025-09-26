@@ -82,15 +82,20 @@ def create_styled_visualization(pdb_file_path, style='cartoon', width=600, heigh
         if style == 'cartoon':
             viewer.setStyle({'cartoon': {'color': 'spectrum'}})
         elif style == 'surface':
-            # Clear any existing styles and add surface representation
-            viewer.setStyle({})
-            viewer.addSurface(py3Dmol.VDW, {'opacity': 0.8, 'color': 'spectrum'})
+            # For surface, use both cartoon and surface for better visualization
+            viewer.setStyle({'cartoon': {'color': 'white', 'opacity': 0.2}})
+            viewer.addSurface(py3Dmol.VDW, {'opacity': 0.7, 'color': 'spectrum'})
         elif style == 'ball_stick':
             # Combine stick and sphere in a single setStyle call
-            viewer.setStyle({'stick': {'colorscheme': 'Jmol', 'radius': 0.2}, 
+            viewer.setStyle({'stick': {'colorscheme': 'Jmol', 'radius': 0.15}, 
                            'sphere': {'scale': 0.3, 'colorscheme': 'Jmol'}})
         elif style == 'ribbon':
-            viewer.setStyle({'cartoon': {'color': 'spectrum', 'style': 'ribbon'}})
+            # Use cartoon with ribbon-like parameters for py3Dmol
+            try:
+                viewer.setStyle({'cartoon': {'color': 'spectrum', 'style': 'oval', 'thickness': 0.3}})
+            except:
+                # Fallback to regular cartoon if ribbon-style parameters aren't supported
+                viewer.setStyle({'cartoon': {'color': 'spectrum'}})
         elif style == 'spacefill':
             viewer.setStyle({'sphere': {'colorscheme': 'Jmol'}})
         else:
@@ -344,6 +349,62 @@ def create_conservation_plot(alignment_data):
             x=0.5, y=0.5, showarrow=False
         )
         return fig
+
+
+def create_alignment_highlighted_visualization(pdb_file_path, pdb_info, width=600, height=400):
+    """
+    Create 3D structure viewer with highlighted alignment region
+    
+    Args:
+        pdb_file_path: Path to PDB file
+        pdb_info: Dictionary containing alignment information (hit_start, hit_end, chain, etc.)
+        width: Viewer width (default: 600)
+        height: Viewer height (default: 400)
+    
+    Returns:
+        HTML string for embedding the viewer
+    """
+    try:
+        if not os.path.exists(pdb_file_path):
+            return "<p>PDB file not found</p>"
+        
+        # Read PDB file content
+        with open(pdb_file_path, 'r') as f:
+            pdb_content = f.read()
+        
+        # Create py3Dmol viewer
+        viewer = py3Dmol.view(width=width, height=height)
+        viewer.addModel(pdb_content, 'pdb')
+        
+        # Get alignment boundaries
+        hit_start = pdb_info.get('hit_start', 1)
+        hit_end = pdb_info.get('hit_end', 100)
+        chain_id = pdb_info.get('chain', 'A')
+        
+        # Show entire structure in gray with low opacity
+        viewer.setStyle({'cartoon': {'color': 'gray', 'opacity': 0.3}})
+        
+        # Highlight aligned region in red
+        try:
+            # Try to highlight specific chain and residue range
+            viewer.addStyle({'chain': chain_id, 'resi': f"{hit_start}-{hit_end}"}, 
+                          {'cartoon': {'color': 'red', 'opacity': 0.9}})
+        except:
+            try:
+                # Fallback: try simpler selection
+                viewer.addStyle({}, {'cartoon': {'color': 'spectrum', 'opacity': 0.8}})
+            except:
+                # Final fallback: just show in spectrum colors
+                viewer.setStyle({'cartoon': {'color': 'spectrum'}})
+        
+        # Center and zoom
+        viewer.zoomTo()
+        
+        # Return HTML
+        return viewer._make_html()
+        
+    except Exception as e:
+        return f"<p>Error creating alignment highlighted viewer: {str(e)}</p>"
 
 
 def create_identity_heatmap(df_results):

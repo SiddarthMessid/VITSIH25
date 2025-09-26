@@ -13,7 +13,7 @@ import plotly.graph_objects as go
 
 from utils.blast_utils import perform_blast_search, extract_pdb_ids_from_blast, create_multiple_alignment
 from utils.pdb_utils import download_pdb_structure, get_structure_info
-from utils.visualization import create_structure_viewer, create_styled_visualization, create_alignment_plot, create_msa_visualization, create_conservation_plot
+from utils.visualization import create_structure_viewer, create_styled_visualization, create_alignment_plot, create_msa_visualization, create_conservation_plot, create_alignment_highlighted_visualization
 from utils.structure_comparison import (create_structure_comparison_viewer, calculate_structure_alignment, 
                                        create_comparison_metrics_table, create_rmsd_heatmap, 
                                        perform_pairwise_alignment)
@@ -502,7 +502,8 @@ with tab3:
                         'Surface': 'surface', 
                         'Ball & Stick': 'ball_stick',
                         'Ribbon': 'ribbon',
-                        'Spacefill': 'spacefill'
+                        'Spacefill': 'spacefill',
+                        'Alignment Highlighting': 'alignment'
                     }
                     selected_style_key = st.selectbox(
                         "Visualization Style:",
@@ -523,12 +524,22 @@ with tab3:
                     st.caption(f"Style: {selected_style_key}")
                     
                     try:
-                        viewer = create_styled_visualization(
-                            selected_structure['file_path'], 
-                            style=selected_style,
-                            width=700,
-                            height=500
-                        )
+                        if selected_style == 'alignment':
+                            # Use alignment highlighting visualization
+                            viewer = create_alignment_highlighted_visualization(
+                                selected_structure['file_path'], 
+                                selected_structure,
+                                width=700,
+                                height=500
+                            )
+                        else:
+                            # Use regular styled visualization
+                            viewer = create_styled_visualization(
+                                selected_structure['file_path'], 
+                                style=selected_style,
+                                width=700,
+                                height=500
+                            )
                         streamlit.components.v1.html(viewer, height=520)
                     except Exception as e:
                         st.error(f"Error creating 3D viewer: {str(e)}")
