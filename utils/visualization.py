@@ -51,10 +51,10 @@ def create_structure_viewer(pdb_file_path, width=600, height=400):
 
 def create_alignment_plot(df_results, query_length):
     """
-    Create alignment region visualization
+    Create alignment region visualization showing where each BLAST hit aligns to the query sequence
     
     Args:
-        df_results: DataFrame with BLAST results
+        df_results: DataFrame with BLAST results containing query_start, query_end, pdb_id, evalue
         query_length: Length of query sequence
     
     Returns:
@@ -63,48 +63,72 @@ def create_alignment_plot(df_results, query_length):
     try:
         fig = go.Figure()
         
-        # Add query sequence as reference line
-        fig.add_shape(
-            type="line",
-            x0=1, y0=0, x1=query_length, y1=0,
-            line=dict(color="black", width=4),
-            name="Query Sequence"
-        )
+        # Add query sequence as reference bar at the bottom
+        fig.add_trace(go.Bar(
+            x=[query_length],
+            y=["Query"],
+            orientation='h',
+            name="Query Sequence",
+            marker=dict(color="lightgray"),
+            text=f"Query ({query_length} AA)",
+            textposition="middle center"
+        ))
         
         # Add alignment regions for each hit
         colors = px.colors.qualitative.Set1
+        y_positions = []
+        hover_text = []
+        x_starts = []
+        x_lengths = []
+        bar_colors = []
         
-        for i, hit in df_results.iterrows():
+        for i, (_, hit) in enumerate(df_results.iterrows()):
             color = colors[i % len(colors)]
+            y_pos = f"{hit['pdb_id']}"
             
-            # Add alignment region
-            fig.add_shape(
-                type="line",
-                x0=hit['query_start'], y0=i+1,
-                x1=hit['query_end'], y1=i+1,
-                line=dict(color=color, width=6),
-            )
+            # Calculate alignment length and position
+            alignment_length = hit['query_end'] - hit['query_start'] + 1
             
-            # Add text annotation
-            fig.add_annotation(
-                x=hit['query_end'] + 10,
-                y=i+1,
-                text=f"{hit['pdb_id']} (E: {hit['evalue']:.1e})",
-                showarrow=False,
-                xanchor="left",
-                font=dict(size=10)
-            )
+            y_positions.append(y_pos)
+            x_starts.append(hit['query_start'])
+            x_lengths.append(alignment_length)
+            bar_colors.append(color)
+            
+            # Create hover text with detailed info
+            hover_info = (f"PDB: {hit['pdb_id']}<br>"
+                         f"Query: {hit['query_start']}-{hit['query_end']}<br>"
+                         f"Identity: {hit['identity']}<br>"
+                         f"E-value: {hit['evalue']:.2e}<br>"
+                         f"Bit Score: {hit['bitscore']:.1f}")
+            hover_text.append(hover_info)
+        
+        # Add alignment bars
+        if y_positions:
+            fig.add_trace(go.Bar(
+                x=x_lengths,
+                y=y_positions,
+                base=x_starts,
+                orientation='h',
+                name="Alignments",
+                marker=dict(color=bar_colors),
+                hovertemplate="%{hovertext}<extra></extra>",
+                hovertext=hover_text
+            ))
         
         # Update layout
         fig.update_layout(
             title="Alignment Regions on Query Sequence",
             xaxis_title="Amino Acid Position",
             yaxis_title="BLAST Hits",
-            xaxis=dict(range=[0, query_length + 100]),
-            yaxis=dict(range=[-0.5, len(df_results) + 0.5]),
-            height=max(400, len(df_results) * 30 + 100),
-            showlegend=False
+            xaxis=dict(range=[0, query_length * 1.1]),
+            height=max(400, (len(df_results) + 1) * 40 + 100),
+            showlegend=False,
+            plot_bgcolor='white'
         )
+        
+        # Add reference lines at regular intervals
+        for pos in range(0, query_length, max(1, query_length // 10)):
+            fig.add_vline(x=pos, line_dash="dash", line_color="lightgray", opacity=0.5)
         
         return fig
         

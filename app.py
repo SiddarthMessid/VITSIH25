@@ -1,6 +1,7 @@
 import streamlit as st
 import streamlit.components.v1
 import pandas as pd
+import numpy as np
 import time
 import os
 from io import StringIO
@@ -176,10 +177,15 @@ with tab2:
         
         # E-value distribution plot
         st.subheader("E-value Distribution")
-        fig = px.bar(df_results, x='pdb_id', y='evalue', 
+        # Prepare data for log scale (clip zeros to avoid log issues)
+        df_plot = df_results.copy()
+        df_plot['evalue'] = pd.to_numeric(df_plot['evalue'], errors='coerce')
+        df_plot['evalue'] = np.where(df_plot['evalue'] <= 0, 1e-300, df_plot['evalue'])
+        
+        fig = px.bar(df_plot, x='pdb_id', y='evalue', 
                      title="E-values of BLAST Hits",
                      labels={'evalue': 'E-value', 'pdb_id': 'PDB ID'})
-        fig.update_layout(yscale="log")
+        fig.update_yaxes(type="log")  # Correct plotly syntax for log scale
         st.plotly_chart(fig, use_container_width=True)
         
     else:
@@ -310,7 +316,11 @@ with tab4:
         
         with col2:
             # Bit score vs E-value
-            fig_scatter = px.scatter(df_results, x='evalue', y='bitscore',
+            df_scatter = df_results.copy()
+            df_scatter['evalue'] = pd.to_numeric(df_scatter['evalue'], errors='coerce')
+            df_scatter['evalue'] = np.where(df_scatter['evalue'] <= 0, 1e-300, df_scatter['evalue'])
+            
+            fig_scatter = px.scatter(df_scatter, x='evalue', y='bitscore',
                                    hover_data=['pdb_id', 'identity'],
                                    title="Bit Score vs E-value",
                                    labels={'evalue': 'E-value', 'bitscore': 'Bit Score'})
