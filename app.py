@@ -11,9 +11,9 @@ from Bio.SeqRecord import SeqRecord
 import plotly.express as px
 import plotly.graph_objects as go
 
-from utils.blast_utils import perform_blast_search, extract_pdb_ids_from_blast
+from utils.blast_utils import perform_blast_search, extract_pdb_ids_from_blast, create_multiple_alignment
 from utils.pdb_utils import download_pdb_structure, get_structure_info
-from utils.visualization import create_structure_viewer, create_alignment_plot
+from utils.visualization import create_structure_viewer, create_alignment_plot, create_msa_visualization, create_conservation_plot
 
 # Page configuration
 st.set_page_config(
@@ -342,6 +342,99 @@ with tab2:
                                    labels={'identity': 'Identity Count', 'bitscore': 'Bit Score', 'evalue': 'E-value'})
             fig_scatter.update_layout(coloraxis_colorbar=dict(title="E-value"))
             st.plotly_chart(fig_scatter, use_container_width=True)
+        
+        # Multiple Sequence Alignment section
+        st.subheader("🧬 Multiple Sequence Alignment")
+        
+        if st.session_state.sequence_record:
+            with st.expander("MSA Visualization Options", expanded=False):
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    max_sequences = st.slider("Max sequences in alignment", min_value=2, max_value=20, value=8)
+                    show_conservation = st.checkbox("Show conservation scores", value=True)
+                
+                with col2:
+                    create_msa = st.button("🔬 Create Multiple Alignment", type="secondary", use_container_width=True)
+            
+            # Create and display MSA
+            if create_msa or 'msa_data' in st.session_state:
+                if create_msa:
+                    with st.spinner("Creating multiple sequence alignment..."):
+                        msa_data = create_multiple_alignment(
+                            st.session_state.sequence_record.seq,
+                            df_results.to_dict('records'),
+                            max_sequences=max_sequences
+                        )
+                        st.session_state.msa_data = msa_data
+                else:
+                    msa_data = st.session_state.get('msa_data')
+                
+                if msa_data:
+                    st.success(f"✅ Alignment created with {len(msa_data['sequences'])} sequences")
+                    
+                    # Display MSA visualization
+                    col1, col2 = st.columns([3, 1])
+                    
+                    with col1:
+                        st.subheader("Alignment View")
+                        fig_msa = create_msa_visualization(msa_data, show_conservation=show_conservation)
+                        st.plotly_chart(fig_msa, use_container_width=True)
+                    
+                    with col2:
+                        st.subheader("Statistics")
+                        st.metric("Sequences", len(msa_data['sequences']))
+                        st.metric("Alignment Length", msa_data['alignment_length'])
+                        
+                        if 'conservation' in msa_data:
+                            avg_conservation = np.mean(msa_data['conservation'])
+                            st.metric("Avg Conservation", f"{avg_conservation:.3f}")
+                            
+                            high_conservation = sum(1 for c in msa_data['conservation'] if c >= 0.8)
+                            st.metric("Highly Conserved Positions", high_conservation)
+                    
+                    # Conservation profile
+                    if show_conservation and 'conservation' in msa_data:
+                        st.subheader("Conservation Profile")
+                        fig_conservation = create_conservation_plot(msa_data)
+                        st.plotly_chart(fig_conservation, use_container_width=True)
+                    
+                    # MSA Export options
+                    with st.expander("Export MSA Data", expanded=False):
+                        col1, col2 = st.columns(2)
+                        
+                        with col1:
+                            # Export alignment as FASTA
+                            fasta_content = ""
+                            for seq in msa_data['sequences']:
+                                fasta_content += f">{seq['id']} {seq['description']}\n{seq['sequence']}\n"
+                            
+                            st.download_button(
+                                label="📄 Download FASTA",
+                                data=fasta_content,
+                                file_name=f"msa_alignment_{time.strftime('%Y%m%d_%H%M%S')}.fasta",
+                                mime="text/plain",
+                                use_container_width=True
+                            )
+                        
+                        with col2:
+                            # Export conservation scores
+                            if 'conservation' in msa_data:
+                                conservation_csv = "Position,Conservation_Score\n"
+                                for i, score in enumerate(msa_data['conservation'], 1):
+                                    conservation_csv += f"{i},{score:.4f}\n"
+                                
+                                st.download_button(
+                                    label="📊 Download Conservation",
+                                    data=conservation_csv,
+                                    file_name=f"msa_conservation_{time.strftime('%Y%m%d_%H%M%S')}.csv",
+                                    mime="text/csv",
+                                    use_container_width=True
+                                )
+                else:
+                    st.error("❌ Failed to create multiple sequence alignment")
+        else:
+            st.info("👆 Load a query sequence first to create multiple sequence alignment")
         
     else:
         st.info("👆 Run a BLAST search to see results here")

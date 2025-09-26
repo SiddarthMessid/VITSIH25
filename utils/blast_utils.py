@@ -3,8 +3,11 @@ BLAST search utilities for protein sequence analysis
 """
 
 import time
+import re
 from Bio.Blast import NCBIWWW
 from Bio import SearchIO
+from Bio.SeqRecord import SeqRecord
+from Bio.Seq import Seq
 from io import StringIO
 
 
@@ -96,6 +99,102 @@ def extract_pdb_ids_from_blast(blast_results, top_n=10):
         pdb_list.append(pdb_info)
     
     return pdb_list
+
+
+def create_multiple_alignment(query_sequence, pdb_hits, max_sequences=10):
+    """
+    Create a multiple sequence alignment from BLAST results
+    
+    Args:
+        query_sequence: Query protein sequence
+        pdb_hits: List of PDB hit dictionaries with alignment information
+        max_sequences: Maximum number of sequences to include in alignment
+    
+    Returns:
+        Dictionary containing alignment data for visualization
+    """
+    try:
+        if not pdb_hits:
+            return None
+        
+        # Take top hits for alignment
+        top_hits = pdb_hits[:max_sequences]
+        
+        # Create alignment data structure
+        alignment_data = {
+            'sequences': [],
+            'identifiers': [],
+            'descriptions': [],
+            'alignment_length': 0,
+            'positions': []
+        }
+        
+        # Add query sequence
+        query_record = {
+            'id': 'Query',
+            'description': 'Query sequence',
+            'sequence': str(query_sequence),
+            'start': 1,
+            'end': len(query_sequence)
+        }
+        alignment_data['sequences'].append(query_record)
+        alignment_data['identifiers'].append('Query')
+        alignment_data['descriptions'].append('Query sequence')
+        
+        # Process each hit
+        for hit in top_hits:
+            if 'query_seq' in hit and 'hit_seq' in hit:
+                # Extract aligned sequences
+                query_aligned = hit['query_seq']
+                hit_aligned = hit['hit_seq']
+                
+                # Create sequence record for the hit
+                hit_record = {
+                    'id': hit['pdb_id'],
+                    'description': hit.get('description', f"PDB {hit['pdb_id']}"),
+                    'sequence': hit_aligned,
+                    'start': hit['hit_start'],
+                    'end': hit['hit_end'],
+                    'evalue': hit['evalue'],
+                    'bitscore': hit['bitscore'],
+                    'identity': hit['identity']
+                }
+                
+                alignment_data['sequences'].append(hit_record)
+                alignment_data['identifiers'].append(hit['pdb_id'])
+                alignment_data['descriptions'].append(hit.get('description', f"PDB {hit['pdb_id']}"))
+        
+        # Calculate alignment statistics
+        if alignment_data['sequences']:
+            # Find the maximum alignment length
+            max_length = max(len(seq['sequence']) for seq in alignment_data['sequences'])
+            alignment_data['alignment_length'] = max_length
+            
+            # Calculate conservation at each position
+            conservation_scores = []
+            for pos in range(max_length):
+                residues = []
+                for seq in alignment_data['sequences']:
+                    if pos < len(seq['sequence']):
+                        residue = seq['sequence'][pos]
+                        if residue != '-':  # Ignore gaps
+                            residues.append(residue)
+                
+                if residues:
+                    # Calculate conservation score (fraction of identical residues)
+                    most_common = max(set(residues), key=residues.count)
+                    conservation = residues.count(most_common) / len(residues)
+                    conservation_scores.append(conservation)
+                else:
+                    conservation_scores.append(0.0)
+            
+            alignment_data['conservation'] = conservation_scores
+        
+        return alignment_data
+        
+    except Exception as e:
+        print(f"Error creating multiple alignment: {e}")
+        return None
 
 
 def get_blast_statistics(pdb_hits):
